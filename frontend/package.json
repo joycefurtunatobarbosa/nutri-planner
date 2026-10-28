@@ -1,0 +1,11 @@
+{
+    "name": "nutri-planner-root",
+    "private": true,
+    "scripts": {
+        "install:app": "npm --prefix package install",
+        "serve": "npm --prefix package run dev",
+        "dev": "npm --prefix package run dev",
+        "build": "npm --prefix package run build",
+        "preview": "npm --prefix package run preview"
+    }
+}
