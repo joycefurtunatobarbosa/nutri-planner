@@ -19,6 +19,7 @@ import {
     type PlanoAlimentarSalvo,
     type RefeicaoPlano
 } from '@/dados/planosSalvos';
+import { gerarPdfPlano } from '@/utils/gerarPdfPlano';
 
 const route = useRoute();
 const router = useRouter();
@@ -35,6 +36,7 @@ const nomesRefeicoes = computed(() => refeicoes.value.map((refeicao) => refeicao
 const refeicaoSelecionada = ref(refeicoesPadrao[0]);
 const nomePaciente = ref('');
 const objetivo = ref('');
+const nomeNutricionista = ref('');
 const busca = ref('');
 const filtroFonte = ref<FonteAlimento | 'Todas as fontes'>('Todas as fontes');
 const quantidadeBusca = ref(100);
@@ -51,6 +53,7 @@ const erro = ref('');
 const mensagem = ref('');
 const notificacaoAberta = ref(false);
 const salvando = ref(false);
+const gerandoPdf = ref(false);
 const planoMockCarregado = ref(false);
 const planoSalvoId = ref<number | null>(null);
 const statusPlanoCarregado = ref<PlanoAlimentarSalvo['status']>('Rascunho');
@@ -67,6 +70,7 @@ watch(
         if (codigo === undefined) {
             nomePaciente.value = '';
             objetivo.value = '';
+            nomeNutricionista.value = '';
             refeicoes.value = criarRefeicoesPadrao();
             refeicaoSelecionada.value = refeicoesPadrao[0];
             return;
@@ -87,6 +91,7 @@ watch(
 
             nomePaciente.value = plano.paciente;
             objetivo.value = plano.objetivo;
+            nomeNutricionista.value = plano.nutricionista ?? '';
             statusPlanoCarregado.value = plano.status;
             refeicoes.value = plano.itens.map((refeicao) => ({
                 ...refeicao,
@@ -114,6 +119,7 @@ watch(
 
             nomePaciente.value = plano.paciente;
             objetivo.value = plano.objetivo;
+            nomeNutricionista.value = plano.nutricionista ?? '';
             statusPlanoCarregado.value = plano.status;
             refeicoes.value = plano.itens.map((refeicao) => ({
                 ...refeicao,
@@ -488,8 +494,8 @@ function adicionarAlimentoPersonalizado() {
 }
 
 function salvarRascunho() {
-    if (!nomePaciente.value.trim() || !objetivo.value.trim()) {
-        erro.value = 'Informe o nome do paciente e o objetivo do plano.';
+    if (!nomePaciente.value.trim() || !objetivo.value.trim() || !nomeNutricionista.value.trim()) {
+        erro.value = 'Informe o nome do paciente, o objetivo e o nutricionista responsável pelo plano.';
         return;
     }
 
@@ -506,6 +512,7 @@ function salvarRascunho() {
             id: planoSalvoId.value ?? Date.now(),
             paciente: nomePaciente.value.trim(),
             objetivo: objetivo.value.trim(),
+            nutricionista: nomeNutricionista.value.trim(),
             calorias: resumo.value.calorias === null ? null : Math.round(resumo.value.calorias),
             refeicoes: refeicoes.value.filter((refeicao) => refeicao.alimentos.length > 0).length,
             atualizadoEm: 'Hoje',
@@ -527,6 +534,36 @@ function salvarRascunho() {
         salvando.value = false;
     }
 }
+
+function gerarPdf() {
+    if (!nomePaciente.value.trim() || !objetivo.value.trim()) {
+        erro.value = 'Informe o nome do paciente e o objetivo antes de gerar o PDF.';
+        return;
+    }
+
+    if (!todasAsPorcoes.value.length) {
+        erro.value = 'Adicione ao menos um alimento antes de gerar o PDF.';
+        return;
+    }
+
+    gerandoPdf.value = true;
+    erro.value = '';
+
+    try {
+        gerarPdfPlano({
+            paciente: nomePaciente.value.trim(),
+            objetivo: objetivo.value.trim(),
+            nutricionista: nomeNutricionista.value.trim(),
+            atualizadoEm: 'Hoje',
+            itens: refeicoes.value
+        });
+    } catch (falha) {
+        console.error('Não foi possível gerar o PDF do plano.', falha);
+        erro.value = 'Não foi possível gerar o PDF do plano. Tente novamente.';
+    } finally {
+        gerandoPdf.value = false;
+    }
+}
 </script>
 
 <template>
@@ -541,7 +578,7 @@ function salvarRascunho() {
             </div>
             <div class="acoes-cabecalho">
                 <v-btn variant="outlined" class="texto-botao" to="/planos-alimentares">Cancelar</v-btn>
-                <v-btn variant="outlined" class="texto-botao">
+                <v-btn variant="outlined" class="texto-botao" :loading="gerandoPdf" @click="gerarPdf">
                     <Icon icon="solar:printer-linear" width="18" class="me-2" />
                     Gerar PDF
                 </v-btn>
@@ -625,10 +662,11 @@ function salvarRascunho() {
                 <v-card class="cartao-conteudo" elevation="0">
                     <div class="titulo-secao">
                         <div class="icone-secao"><Icon icon="solar:user-id-linear" width="21" /></div>
-                        <div><h2>Dados do plano</h2><p>Identifique o paciente e o objetivo</p></div>
+                        <div><h2>Dados do plano</h2><p>Identifique o paciente, o objetivo e o responsável</p></div>
                     </div>
                     <v-text-field v-model="nomePaciente" label="Paciente" placeholder="Nome completo" variant="outlined" />
                     <v-text-field v-model="objetivo" label="Objetivo nutricional" placeholder="Ex.: Reeducação alimentar" variant="outlined" />
+                    <v-text-field v-model="nomeNutricionista" label="Nutricionista responsável" placeholder="Nome completo" variant="outlined" />
 
                     <v-divider class="my-4" />
 

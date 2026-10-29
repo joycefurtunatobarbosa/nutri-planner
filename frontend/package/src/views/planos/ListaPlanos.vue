@@ -5,11 +5,13 @@ import { Icon } from '@iconify/vue';
 import { criptografarPlano } from '@/dados/compartilhamentoPlano';
 import { gerarCodigoHashPlano, obterPlanoMock, planosMock, type StatusPlanoMock } from '@/dados/planosMock';
 import { lerPlanosSalvos, type RefeicaoPlano } from '@/dados/planosSalvos';
+import { gerarPdfPlano } from '@/utils/gerarPdfPlano';
 
 interface PlanoAlimentar {
     id: number;
     paciente: string;
     objetivo: string;
+    nutricionista: string;
     calorias: number | null;
     refeicoes: number;
     atualizadoEm: string;
@@ -23,7 +25,9 @@ const planos = ref<PlanoAlimentar[]>([...planosMock]);
 const busca = ref('');
 const filtroStatus = ref('Todos os status');
 const mensagem = ref('');
+const corNotificacao = ref<'success' | 'error'>('success');
 const notificacaoAberta = ref(false);
+const gerandoPdfId = ref<number | null>(null);
 const dialogoCompartilhamento = ref(false);
 const planoSelecionado = ref<PlanoAlimentar | null>(null);
 const senhaCompartilhamento = ref('');
@@ -75,6 +79,15 @@ function gerarNovoLink() {
 const planoTemRefeicoes = computed(() =>
     Boolean(planoParaCompartilhar.value?.itens.some((refeicao) => refeicao.alimentos.length))
 );
+
+function itensDoPlano(plano: PlanoAlimentar): RefeicaoPlano[] {
+    if (plano.itens?.length) {
+        return plano.itens;
+    }
+
+    return obterPlanoMock(plano.id)?.itens ?? [];
+}
+
 const planoParaCompartilhar = computed(() => {
     const plano = planoSelecionado.value;
 
@@ -82,11 +95,9 @@ const planoParaCompartilhar = computed(() => {
         return null;
     }
 
-    const mock = obterPlanoMock(plano.id);
-
     return {
         ...plano,
-        itens: plano.itens?.length ? plano.itens : mock?.itens ?? []
+        itens: itensDoPlano(plano)
     };
 });
 
@@ -156,6 +167,7 @@ async function gerarLinkCompartilhado() {
             {
                 paciente: plano.paciente,
                 objetivo: plano.objetivo,
+                nutricionista: plano.nutricionista,
                 calorias: plano.calorias,
                 refeicoes: plano.refeicoes,
                 atualizadoEm: plano.atualizadoEm,
@@ -179,10 +191,41 @@ async function copiarLinkCompartilhado() {
     try {
         await navigator.clipboard.writeText(linkCompartilhamento.value);
         mensagem.value = 'Link copiado. Envie a senha ao paciente por outro canal.';
+        corNotificacao.value = 'success';
         notificacaoAberta.value = true;
     } catch (falha) {
         console.error('Não foi possível copiar o link compartilhado.', falha);
         erroCompartilhamento.value = 'Não foi possível copiar automaticamente. Selecione e copie o link acima.';
+    }
+}
+
+function gerarPdfDoPlano(plano: PlanoAlimentar) {
+    const itens = itensDoPlano(plano);
+
+    if (!itens.some((refeicao) => refeicao.alimentos.length)) {
+        mensagem.value = 'Este plano não tem refeições cadastradas para gerar o PDF.';
+        corNotificacao.value = 'error';
+        notificacaoAberta.value = true;
+        return;
+    }
+
+    gerandoPdfId.value = plano.id;
+
+    try {
+        gerarPdfPlano({
+            paciente: plano.paciente,
+            objetivo: plano.objetivo,
+            nutricionista: plano.nutricionista,
+            atualizadoEm: plano.atualizadoEm,
+            itens
+        });
+    } catch (falha) {
+        console.error('Não foi possível gerar o PDF do plano.', falha);
+        mensagem.value = 'Não foi possível gerar o PDF do plano. Tente novamente.';
+        corNotificacao.value = 'error';
+        notificacaoAberta.value = true;
+    } finally {
+        gerandoPdfId.value = null;
     }
 }
 
@@ -192,6 +235,7 @@ onMounted(() => {
     } catch (falha) {
         console.error('Não foi possível carregar os planos salvos.', falha);
         mensagem.value = 'Não foi possível carregar os planos salvos neste navegador.';
+        corNotificacao.value = 'error';
         notificacaoAberta.value = true;
     }
 });
@@ -315,8 +359,10 @@ onMounted(() => {
                                     icon
                                     variant="text"
                                     color="primary"
+                                    :loading="gerandoPdfId === plano.id"
                                     :aria-label="`Gerar PDF do plano de ${plano.paciente}`"
                                     title="Gerar PDF do plano"
+                                    @click="gerarPdfDoPlano(plano)"
                                 >
                                     <Icon icon="solar:printer-linear" width="19" />
                                 </v-btn>
@@ -419,7 +465,7 @@ onMounted(() => {
             </v-card>
         </v-dialog>
 
-        <v-snackbar v-model="notificacaoAberta" color="success" timeout="3000">{{ mensagem }}</v-snackbar>
+        <v-snackbar v-model="notificacaoAberta" :color="corNotificacao" timeout="3000">{{ mensagem }}</v-snackbar>
     </main>
 </template>
 

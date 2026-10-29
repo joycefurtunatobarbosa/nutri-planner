@@ -14,6 +14,7 @@ export interface PlanoAlimentarSalvo {
     id: number;
     paciente: string;
     objetivo: string;
+    nutricionista: string;
     calorias: number | null;
     refeicoes: number;
     atualizadoEm: string;
@@ -36,7 +37,11 @@ export function lerPlanosSalvos(): PlanoAlimentarSalvo[] {
         throw new Error('Os planos salvos estão em um formato inválido.');
     }
 
-    return dados as PlanoAlimentarSalvo[];
+    // Planos salvos antes da adição do campo "nutricionista" não o possuem no localStorage.
+    return (dados as PlanoAlimentarSalvo[]).map((plano) => ({
+        ...plano,
+        nutricionista: plano.nutricionista ?? ''
+    }));
 }
 
 export function salvarPlano(plano: PlanoAlimentarSalvo): void {

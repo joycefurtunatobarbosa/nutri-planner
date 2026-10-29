@@ -3,6 +3,7 @@ import type { AlimentoNoPlano, RefeicaoPlano } from './planosSalvos';
 export interface PlanoPacienteCompartilhado {
     paciente: string;
     objetivo: string;
+    nutricionista: string;
     calorias: number | null;
     refeicoes: number;
     atualizadoEm: string;
@@ -95,6 +96,7 @@ function isPlanoPaciente(valor: unknown): valor is PlanoPacienteCompartilhado {
         isRegistro(valor) &&
         typeof valor.paciente === 'string' &&
         typeof valor.objetivo === 'string' &&
+        typeof valor.nutricionista === 'string' &&
         isNumeroOpcional(valor.calorias) &&
         typeof valor.refeicoes === 'number' &&
         Number.isFinite(valor.refeicoes) &&

@@ -3,12 +3,14 @@ import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { descriptografarPlano, type PlanoPacienteCompartilhado } from '@/dados/compartilhamentoPlano';
 import type { AlimentoNoPlano } from '@/dados/planosSalvos';
+import { gerarPdfPlano } from '@/utils/gerarPdfPlano';
 
 const token = new URLSearchParams(window.location.hash.slice(1)).get('plano');
 const senha = ref('');
 const plano = ref<PlanoPacienteCompartilhado | null>(null);
 const erro = ref('');
 const abrindo = ref(false);
+const gerandoPdf = ref(false);
 
 const totais = computed(() => {
     if (!plano.value) {
@@ -42,6 +44,22 @@ function formatarNutriente(valor: number | null, unidade: string): string {
     return valor === null ? '—' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${unidade}`;
 }
 
+function formatarPercentual(valor: number | null): string {
+    return valor === null ? '—' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+}
+
+function calcularPercentualMacro(quantidade: number | null, fator: number): number | null {
+    const calorias = totais.value.calorias;
+
+    return calorias !== null && calorias > 0 && quantidade !== null ? (quantidade * fator * 100) / calorias : null;
+}
+
+const percentuais = computed(() => ({
+    carboidratos: calcularPercentualMacro(totais.value.carboidratos, 4),
+    proteinas: calcularPercentualMacro(totais.value.proteinas, 4),
+    gorduras: calcularPercentualMacro(totais.value.gorduras, 9)
+}));
+
 function caloriasDaRefeicao(alimentos: AlimentoNoPlano[]): number | null {
     if (alimentos.some((alimento) => alimento.kcal === null)) {
         return null;
@@ -51,6 +69,30 @@ function caloriasDaRefeicao(alimentos: AlimentoNoPlano[]): number | null {
         (total, alimento) => total + ((alimento.kcal ?? 0) * alimento.quantidadeGramas) / 100,
         0
     );
+}
+
+function gerarPdf() {
+    if (!plano.value) {
+        return;
+    }
+
+    gerandoPdf.value = true;
+    erro.value = '';
+
+    try {
+        gerarPdfPlano({
+            paciente: plano.value.paciente,
+            objetivo: plano.value.objetivo,
+            nutricionista: plano.value.nutricionista,
+            atualizadoEm: plano.value.atualizadoEm,
+            itens: plano.value.itens
+        });
+    } catch (falha) {
+        console.error('Não foi possível gerar o PDF do plano.', falha);
+        erro.value = 'Não foi possível gerar o PDF do plano. Tente novamente.';
+    } finally {
+        gerandoPdf.value = false;
+    }
 }
 
 async function abrirPlano() {
@@ -116,22 +158,38 @@ async function abrirPlano() {
                     <span class="sobretitulo">Plano alimentar</span>
                     <h1>{{ plano.paciente }}</h1>
                     <p>{{ plano.objetivo }}</p>
+                    <p class="nutricionista-responsavel">
+                        <Icon icon="solar:user-id-linear" width="15" class="me-1" />
+                        Nutricionista responsável: <strong>{{ plano.nutricionista }}</strong>
+                    </p>
                 </div>
                 <div class="acoes-plano">
-                    <v-btn class="botao-pdf" color="primary" variant="tonal">
-                        <Icon icon="solar:printer-linear" width="18" class="me-2" />
+                    <v-btn class="botao-pdf" color="primary" variant="tonal" :loading="gerandoPdf" @click="gerarPdf">
+                        <Icon icon="solar:download-linear" width="18" class="me-2" />
                         Gerar PDF
                     </v-btn>
                     <v-chip color="success" variant="tonal"><Icon icon="solar:eye-linear" width="16" class="me-1" /> Somente leitura</v-chip>
                 </div>
             </div>
 
+            <v-alert v-if="erro" type="error" variant="tonal" class="mb-5">{{ erro }}</v-alert>
+
             <section class="resumo-plano" aria-label="Resumo nutricional do plano">
                 <article><span>Calorias</span><strong>{{ formatarNutriente(totais.calorias, 'kcal') }}</strong></article>
-                <article><span>Carboidratos</span><strong>{{ formatarNutriente(totais.carboidratos, 'g') }}</strong></article>
-                <article><span>Proteínas</span><strong>{{ formatarNutriente(totais.proteinas, 'g') }}</strong></article>
-                <article><span>Gorduras</span><strong>{{ formatarNutriente(totais.gorduras, 'g') }}</strong></article>
+                <article>
+                    <span>Carboidratos</span><strong>{{ formatarNutriente(totais.carboidratos, 'g') }}</strong>
+                    <small>{{ formatarPercentual(percentuais.carboidratos) }} da dieta</small>
+                </article>
+                <article>
+                    <span>Proteínas</span><strong>{{ formatarNutriente(totais.proteinas, 'g') }}</strong>
+                    <small>{{ formatarPercentual(percentuais.proteinas) }} da dieta</small>
+                </article>
+                <article>
+                    <span>Gorduras</span><strong>{{ formatarNutriente(totais.gorduras, 'g') }}</strong>
+                    <small>{{ formatarPercentual(percentuais.gorduras) }} da dieta</small>
+                </article>
             </section>
+
 
             <div class="cabecalho-refeicoes">
                 <div><h2>Suas refeições</h2><p>Alimentos e porções recomendadas</p></div>
@@ -174,10 +232,13 @@ async function abrirPlano() {
 .sobretitulo { color: #635bff; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .titulo-plano h1 { margin-top: 7px; }
 .titulo-plano p { margin: 5px 0 0; color: #7b8893; }
+.nutricionista-responsavel { display: flex; align-items: center; margin-top: 10px !important; color: #526170; font-size: 13px; }
+.nutricionista-responsavel strong { margin-left: 4px; color: #0a2540; }
 .resumo-plano { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 34px; }
-.resumo-plano article { display: flex; min-height: 92px; flex-direction: column; justify-content: center; gap: 8px; padding: 16px; border: 1px solid #e8edf2; border-radius: 12px; background: white; }
+.resumo-plano article { display: flex; min-height: 92px; flex-direction: column; justify-content: center; gap: 6px; padding: 16px; border: 1px solid #e8edf2; border-radius: 12px; background: white; }
 .resumo-plano span { color: #7b8893; font-size: 12px; }
 .resumo-plano strong { font-size: 18px; }
+.resumo-plano small { color: #7b8893; font-size: 11px; }
 .cabecalho-refeicoes { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
 .cabecalho-refeicoes h2 { margin: 0; font-size: 19px; }
 .cabecalho-refeicoes p { margin: 5px 0 0; color: #7b8893; font-size: 13px; }

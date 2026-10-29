@@ -6,6 +6,7 @@ export interface PlanoMock {
     id: number;
     paciente: string;
     objetivo: string;
+    nutricionista: string;
     calorias: number | null;
     refeicoes: number;
     atualizadoEm: string;
@@ -16,15 +17,17 @@ export interface PlanoMockComRefeicoes extends PlanoMock {
     itens: RefeicaoPlano[];
 }
 
+const NUTRICIONISTA_PADRAO = 'Dra. Camila Rodrigues';
+
 export const planosMock: PlanoMock[] = [
-    { id: 1, paciente: 'Mariana Costa', objetivo: 'Emagrecimento saudável', calorias: 1650, refeicoes: 5, atualizadoEm: 'Hoje', status: 'Ativo' },
-    { id: 2, paciente: 'Pedro Henrique', objetivo: 'Ganho de massa muscular', calorias: 2450, refeicoes: 6, atualizadoEm: 'Ontem', status: 'Ativo' },
-    { id: 3, paciente: 'Camila Oliveira', objetivo: 'Reeducação alimentar', calorias: 1800, refeicoes: 5, atualizadoEm: '20 out, 2026', status: 'Rascunho' },
-    { id: 4, paciente: 'Rafael Santos', objetivo: 'Controle glicêmico', calorias: 1900, refeicoes: 6, atualizadoEm: '18 out, 2026', status: 'Ativo' },
-    { id: 5, paciente: 'Beatriz Almeida', objetivo: 'Emagrecimento saudável', calorias: 1500, refeicoes: 5, atualizadoEm: '15 out, 2026', status: 'Concluído' },
-    { id: 6, paciente: 'Lucas Ferreira', objetivo: 'Melhora da performance', calorias: 2200, refeicoes: 6, atualizadoEm: '12 out, 2026', status: 'Ativo' },
-    { id: 7, paciente: 'Fernanda Lima', objetivo: 'Saúde intestinal', calorias: 1750, refeicoes: 5, atualizadoEm: '10 out, 2026', status: 'Rascunho' },
-    { id: 8, paciente: 'Gabriel Souza', objetivo: 'Ganho de massa muscular', calorias: 2600, refeicoes: 6, atualizadoEm: '05 out, 2026', status: 'Concluído' }
+    { id: 1, paciente: 'Mariana Costa', objetivo: 'Emagrecimento saudável', nutricionista: NUTRICIONISTA_PADRAO, calorias: 1650, refeicoes: 5, atualizadoEm: 'Hoje', status: 'Ativo' },
+    { id: 2, paciente: 'Pedro Henrique', objetivo: 'Ganho de massa muscular', nutricionista: NUTRICIONISTA_PADRAO, calorias: 2450, refeicoes: 6, atualizadoEm: 'Ontem', status: 'Ativo' },
+    { id: 3, paciente: 'Camila Oliveira', objetivo: 'Reeducação alimentar', nutricionista: NUTRICIONISTA_PADRAO, calorias: 1800, refeicoes: 5, atualizadoEm: '20 out, 2026', status: 'Rascunho' },
+    { id: 4, paciente: 'Rafael Santos', objetivo: 'Controle glicêmico', nutricionista: NUTRICIONISTA_PADRAO, calorias: 1900, refeicoes: 6, atualizadoEm: '18 out, 2026', status: 'Ativo' },
+    { id: 5, paciente: 'Beatriz Almeida', objetivo: 'Emagrecimento saudável', nutricionista: NUTRICIONISTA_PADRAO, calorias: 1500, refeicoes: 5, atualizadoEm: '15 out, 2026', status: 'Concluído' },
+    { id: 6, paciente: 'Lucas Ferreira', objetivo: 'Melhora da performance', nutricionista: NUTRICIONISTA_PADRAO, calorias: 2200, refeicoes: 6, atualizadoEm: '12 out, 2026', status: 'Ativo' },
+    { id: 7, paciente: 'Fernanda Lima', objetivo: 'Saúde intestinal', nutricionista: NUTRICIONISTA_PADRAO, calorias: 1750, refeicoes: 5, atualizadoEm: '10 out, 2026', status: 'Rascunho' },
+    { id: 8, paciente: 'Gabriel Souza', objetivo: 'Ganho de massa muscular', nutricionista: NUTRICIONISTA_PADRAO, calorias: 2600, refeicoes: 6, atualizadoEm: '05 out, 2026', status: 'Concluído' }
 ];
 
 export function gerarCodigoHashPlano(tipo: 'mock' | 'salvo', id: number, paciente: string): string {
