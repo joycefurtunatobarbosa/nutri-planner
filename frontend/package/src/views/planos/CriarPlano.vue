@@ -2,7 +2,13 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { alimentosBase, type Alimento, type FonteAlimento } from '@/dados/alimentos';
+import {
+    alimentosBase,
+    type Alimento,
+    type FonteAlimento,
+    type Micronutrientes,
+    type ValorMicronutriente
+} from '@/dados/alimentos';
 import { gerarCodigoHashPlano, obterPlanoMockPorCodigo } from '@/dados/planosMock';
 import {
     atualizarPlano,
@@ -34,6 +40,9 @@ const filtroFonte = ref<FonteAlimento | 'Todas as fontes'>('Todas as fontes');
 const quantidadeBusca = ref(100);
 const dialogoPersonalizado = ref(false);
 const dialogoNovaRefeicao = ref(false);
+const dialogoMicronutrientes = ref(false);
+const alimentoMicronutrientes = ref<Alimento | AlimentoNoPlano | null>(null);
+const modoResumoMicronutrientes = ref(false);
 const nomeNovaRefeicao = ref('');
 const horarioNovaRefeicao = ref('');
 const erroNovaRefeicao = ref('');
@@ -169,8 +178,209 @@ const resumo = computed(() => ({
     gordura: calcularNutriente(todasAsPorcoes.value, 'lipideos_g')
 }));
 
+const participacaoEnergetica = computed(() => {
+    const caloriasPlano = resumo.value.calorias;
+    const macros = [
+        { nome: 'Carboidratos', quantidade: resumo.value.carboidrato, fator: 4 },
+        { nome: 'Proteínas', quantidade: resumo.value.proteina, fator: 4 },
+        { nome: 'Gorduras', quantidade: resumo.value.gordura, fator: 9 }
+    ];
+
+    return macros.map(({ nome, quantidade, fator }) => ({
+        nome,
+        percentual:
+            caloriasPlano !== null && caloriasPlano > 0 && quantidade !== null
+                ? (quantidade * fator * 100) / caloriasPlano
+                : null
+    }));
+});
+
+const categoriasGraficoMacronutrientes = computed(() =>
+    participacaoEnergetica.value.flatMap((macro) => (macro.percentual === null ? [] : [macro.nome]))
+);
+
+const coresMacronutrientes: Record<string, string> = {
+    Carboidratos: '#e39b25',
+    Proteínas: '#28a66a',
+    Gorduras: '#e66c83'
+};
+
+const opcoesGraficoMacronutrientes = computed(() => ({
+    chart: {
+        type: 'bar',
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        foreColor: '#7b8893'
+    },
+    colors: categoriasGraficoMacronutrientes.value.map((nome) => coresMacronutrientes[nome]),
+    legend: { show: false },
+    plotOptions: {
+        bar: {
+            distributed: true,
+            horizontal: true,
+            borderRadius: 5,
+            barHeight: '55%'
+        }
+    },
+    dataLabels: {
+        enabled: true,
+        formatter: (valor: number) => `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+    },
+    xaxis: {
+        min: 0,
+        max: Math.max(
+            100,
+            Math.ceil(Math.max(0, ...participacaoEnergetica.value.map((macro) => macro.percentual ?? 0)) / 10) * 10
+        ),
+        tickAmount: 5,
+        categories: categoriasGraficoMacronutrientes.value,
+        labels: {
+            formatter: (valor: string) => `${valor}%`
+        }
+    },
+    yaxis: {
+        labels: {
+            style: { colors: '#34495c', fontSize: '13px' }
+        }
+    },
+    grid: {
+        borderColor: 'rgba(0,0,0,0.06)',
+        xaxis: { lines: { show: true } },
+        yaxis: { lines: { show: false } }
+    },
+    tooltip: {
+        y: {
+            formatter: (valor: number) => `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% da dieta`
+        }
+    }
+}));
+
+const serieGraficoMacronutrientes = computed(() => [
+    {
+        name: 'Participação energética',
+        data: participacaoEnergetica.value.flatMap((macro) =>
+            macro.percentual === null ? [] : [macro.percentual]
+        )
+    }
+]);
+
+const tipoGraficoMacronutrientes = ref<'bar' | 'pie'>('bar');
+const opcoesGraficoPizza = computed(() => ({
+    chart: { type: 'pie', fontFamily: 'inherit', foreColor: '#7b8893' },
+    labels: categoriasGraficoMacronutrientes.value,
+    colors: categoriasGraficoMacronutrientes.value.map((nome) => coresMacronutrientes[nome]),
+    legend: { position: 'right' },
+    dataLabels: {
+        formatter: (valor: number) => `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+    },
+    tooltip: {
+        y: {
+            formatter: (valor: number) => `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% da energia total`
+        }
+    }
+}));
+
+const serieGraficoPizza = computed(() => serieGraficoMacronutrientes.value[0].data);
+
+function formatarPercentual(valor: number | null): string {
+    return valor === null ? '—' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+}
+
+const camposMicronutrientes: { chave: keyof Micronutrientes; nome: string; unidade: string; grupo: 'Vitaminas' | 'Minerais' }[] = [
+    { chave: 'retinol_ug', nome: 'Retinol', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_a_re_ug', nome: 'Vitamina A (RE)', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_a_rae_ug', nome: 'Vitamina A (RAE)', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_c_mg', nome: 'Vitamina C', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'tiamina_mg', nome: 'Tiamina (B1)', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'riboflavina_mg', nome: 'Riboflavina (B2)', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'piridoxina_mg', nome: 'Piridoxina (B6)', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_b12_ug', nome: 'Vitamina B12', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_d_ug', nome: 'Vitamina D', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'niacina_mg', nome: 'Niacina (B3)', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'folato_ug', nome: 'Folato', unidade: 'µg', grupo: 'Vitaminas' },
+    { chave: 'acido_pantotenico_mg', nome: 'Ácido pantotênico (B5)', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'vitamina_e_mg', nome: 'Vitamina E', unidade: 'mg', grupo: 'Vitaminas' },
+    { chave: 'iodo_ug', nome: 'Iodo', unidade: 'µg', grupo: 'Minerais' },
+    { chave: 'sodio_mg', nome: 'Sódio', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'calcio_mg', nome: 'Cálcio', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'magnesio_mg', nome: 'Magnésio', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'zinco_mg', nome: 'Zinco', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'manganes_mg', nome: 'Manganês', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'potassio_mg', nome: 'Potássio', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'fosforo_mg', nome: 'Fósforo', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'ferro_mg', nome: 'Ferro', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'cobre_mg', nome: 'Cobre', unidade: 'mg', grupo: 'Minerais' },
+    { chave: 'selenio_ug', nome: 'Selênio', unidade: 'µg', grupo: 'Minerais' }
+];
+const gruposMicronutrientes = ['Vitaminas', 'Minerais'] as const;
+const micronutrientesDoAlimento = computed(() =>
+    camposMicronutrientes.filter(
+        (campo) => valorDoAlimento(alimentoMicronutrientes.value, campo.chave) !== null
+    )
+);
+
+const resumoMicronutrientes = computed(() =>
+    camposMicronutrientes
+        .map((campo) => {
+            let total = 0;
+            let informados = 0;
+            let temTraco = false;
+
+            for (const porcao of todasAsPorcoes.value) {
+                const valor = porcao.micronutrientes?.[campo.chave];
+
+                if (typeof valor === 'number') {
+                    total += (valor * porcao.quantidadeGramas) / 100;
+                    informados += 1;
+                } else if (valor === 'Tr') {
+                    temTraco = true;
+                    informados += 1;
+                }
+            }
+
+            let valor: ValorMicronutriente = null;
+            if (informados > 0) {
+                valor = total === 0 && temTraco ? 'Tr' : total;
+            }
+
+            return {
+                ...campo,
+                valor,
+                informados,
+                totalAlimentos: todasAsPorcoes.value.length
+            };
+        })
+        .filter((campo) => campo.informados > 0)
+);
+
 function formatarNutriente(valor: number | null, unidade: string): string {
     return valor === null ? '—' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${unidade}`;
+}
+
+function formatarMicronutriente(valor: ValorMicronutriente, unidade: string): string {
+    if (valor === null) {
+        return 'Não informado';
+    }
+
+    return valor === 'Tr'
+        ? 'Tr (traço)'
+        : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${unidade}`;
+}
+
+function abrirMicronutrientes(alimento: Alimento | AlimentoNoPlano) {
+    alimentoMicronutrientes.value = alimento;
+    modoResumoMicronutrientes.value = false;
+    dialogoMicronutrientes.value = true;
+}
+
+function abrirResumoMicronutrientes() {
+    alimentoMicronutrientes.value = null;
+    modoResumoMicronutrientes.value = true;
+    dialogoMicronutrientes.value = true;
+}
+
+function valorDoAlimento(alimento: Alimento | AlimentoNoPlano | null, chave: keyof Micronutrientes): ValorMicronutriente {
+    return alimento?.micronutrientes?.[chave] ?? null;
 }
 
 function adicionarAlimento(alimento: Alimento) {
@@ -356,17 +566,56 @@ function salvarRascunho() {
             </v-card>
             <v-card class="cartao-nutricao carboidrato" elevation="0">
                 <span>Carboidratos</span><strong>{{ formatarNutriente(resumo.carboidrato, 'g') }}</strong>
-                <small>no plano</small>
+                <small>{{ formatarPercentual(participacaoEnergetica[0].percentual) }} da dieta</small>
             </v-card>
             <v-card class="cartao-nutricao proteina" elevation="0">
                 <span>Proteínas</span><strong>{{ formatarNutriente(resumo.proteina, 'g') }}</strong>
-                <small>no plano</small>
+                <small>{{ formatarPercentual(participacaoEnergetica[1].percentual) }} da dieta</small>
             </v-card>
             <v-card class="cartao-nutricao gordura" elevation="0">
                 <span>Gorduras</span><strong>{{ formatarNutriente(resumo.gordura, 'g') }}</strong>
-                <small>no plano</small>
+                <small>{{ formatarPercentual(participacaoEnergetica[2].percentual) }} da dieta</small>
+            </v-card>
+            <v-card class="cartao-nutricao micros-resumo" elevation="0">
+                <span>Micronutrientes</span>
+                <v-btn variant="tonal" color="primary" size="small" class="texto-botao" @click="abrirResumoMicronutrientes">
+                    <Icon icon="solar:chart-2-linear" width="17" class="me-1" />
+                    Ver total da dieta
+                </v-btn>
             </v-card>
         </section>
+        <v-card class="cartao-grafico-macros" elevation="0">
+            <div class="titulo-grafico">
+                <div>
+                    <h2>Distribuição energética</h2>
+                    <p>Percentual das calorias totais fornecido por cada macronutriente</p>
+                </div>
+                <v-btn-toggle v-model="tipoGraficoMacronutrientes" mandatory density="compact" variant="outlined" color="primary" divided>
+                    <v-btn value="bar" class="texto-botao" size="small">Barras</v-btn>
+                    <v-btn value="pie" class="texto-botao" size="small">Pizza</v-btn>
+                </v-btn-toggle>
+            </div>
+            <p class="legenda-calorica">Carboidratos e proteínas: 4 kcal/g · Gorduras: 9 kcal/g</p>
+            <template v-if="resumo.calorias !== null && resumo.calorias > 0 && participacaoEnergetica.some((macro) => macro.percentual !== null)">
+                <apexchart
+                    v-if="tipoGraficoMacronutrientes === 'bar'"
+                    key="grafico-barras"
+                    type="bar"
+                    height="190"
+                    :options="opcoesGraficoMacronutrientes"
+                    :series="serieGraficoMacronutrientes"
+                />
+                <apexchart
+                    v-else
+                    key="grafico-pizza"
+                    type="pie"
+                    height="240"
+                    :options="opcoesGraficoPizza"
+                    :series="serieGraficoPizza"
+                />
+            </template>
+            <p v-else class="texto-sem-grafico">Adicione alimentos com calorias e macronutrientes informados para visualizar a distribuição.</p>
+        </v-card>
         <p v-if="todasAsPorcoes.some((alimento) => alimento.kcal === null || alimento.proteina_g === null || alimento.carboidrato_g === null || alimento.lipideos_g === null)" class="aviso-dados">
             Alguns alimentos não têm todos os nutrientes informados na fonte; o total correspondente será exibido como “—”.
         </p>
@@ -436,9 +685,14 @@ function salvarRascunho() {
                             </div>
                             <div class="rodape-alimento">
                                 <span>Valores por 100 g</span>
-                                <v-btn size="small" variant="text" color="primary" @click="adicionarAlimento(alimento)">
-                                    <Icon icon="solar:add-circle-linear" width="17" class="me-1" /> Adicionar
-                                </v-btn>
+                                <div class="acoes-alimento">
+                                    <v-btn size="small" variant="text" color="primary" class="texto-botao" @click="abrirMicronutrientes(alimento)">
+                                        <Icon icon="solar:eye-linear" width="17" class="me-1" /> Ver micronutrientes
+                                    </v-btn>
+                                    <v-btn size="small" variant="text" color="primary" class="texto-botao" @click="adicionarAlimento(alimento)">
+                                        <Icon icon="solar:add-circle-linear" width="17" class="me-1" /> Adicionar
+                                    </v-btn>
+                                </div>
                             </div>
                         </article>
                     </div>
@@ -495,6 +749,9 @@ function salvarRascunho() {
                                         <span>{{ formatarNutriente(alimento.proteina_g === null ? null : alimento.proteina_g * alimento.quantidadeGramas / 100, 'g') }} prot.</span>
                                         <span>{{ formatarNutriente(alimento.lipideos_g === null ? null : alimento.lipideos_g * alimento.quantidadeGramas / 100, 'g') }} gord.</span>
                                     </div>
+                                    <v-btn size="small" variant="text" color="primary" class="texto-botao botao-micro-item" @click="abrirMicronutrientes(alimento)">
+                                        <Icon icon="solar:eye-linear" width="16" class="me-1" /> Ver micronutrientes
+                                    </v-btn>
                                 </div>
                                 <v-text-field
                                     :model-value="alimento.quantidadeGramas"
@@ -573,6 +830,64 @@ function salvarRascunho() {
                 </v-card-actions>
             </v-card>
         </v-dialog>
+        <v-dialog v-model="dialogoMicronutrientes" max-width="720">
+            <v-card class="dialogo-micronutrientes">
+                <v-card-title>{{ modoResumoMicronutrientes ? 'Micronutrientes da dieta completa' : 'Micronutrientes do alimento' }}</v-card-title>
+                <v-card-text>
+                    <template v-if="modoResumoMicronutrientes">
+                        <p class="texto-dialogo">
+                            Total calculado proporcionalmente às porções adicionadas. Itens sem o dado na fonte são excluídos do total.
+                        </p>
+                        <div v-if="resumoMicronutrientes.length" class="lista-micronutrientes">
+                            <template v-for="grupo in gruposMicronutrientes" :key="grupo">
+                                <h3 v-if="resumoMicronutrientes.some((item) => item.grupo === grupo)">{{ grupo }}</h3>
+                                <div
+                                    v-for="item in resumoMicronutrientes.filter((nutriente) => nutriente.grupo === grupo)"
+                                    :key="item.chave"
+                                    class="linha-micronutriente"
+                                >
+                                    <strong>{{ item.nome }}</strong>
+                                    <span>{{ formatarMicronutriente(item.valor, item.unidade) }}</span>
+                                    <small>{{ item.informados }} de {{ item.totalAlimentos }} alimentos</small>
+                                </div>
+                            </template>
+                        </div>
+                        <p v-else class="texto-dialogo">Ainda não há micronutrientes informados para os alimentos deste plano.</p>
+                    </template>
+                    <template v-else-if="alimentoMicronutrientes">
+                        <p class="nome-cientifico">
+                            <strong>Nome popular:</strong>
+                            {{ alimentoMicronutrientes.nome }}
+                        </p>
+                        <p class="nome-cientifico">
+                            <strong>Nome científico:</strong>
+                            {{ alimentoMicronutrientes.nome_cientifico || 'Não informado pela fonte' }}
+                        </p>
+                        <p class="texto-dialogo">Valores por 100 g. “Tr” indica valor em traço; dados não disponíveis na fonte são exibidos como “Não informado”.</p>
+                        <div class="lista-micronutrientes">
+                            <template v-for="grupo in gruposMicronutrientes" :key="grupo">
+                                <h3 v-if="micronutrientesDoAlimento.some((item) => item.grupo === grupo)">{{ grupo }}</h3>
+                                <div
+                                    v-for="item in micronutrientesDoAlimento.filter((nutriente) => nutriente.grupo === grupo)"
+                                    :key="item.chave"
+                                    class="linha-micronutriente"
+                                >
+                                    <strong>{{ item.nome }}</strong>
+                                    <span>{{ formatarMicronutriente(valorDoAlimento(alimentoMicronutrientes, item.chave), item.unidade) }}</span>
+                                </div>
+                            </template>
+                            <p v-if="!micronutrientesDoAlimento.length" class="texto-dialogo">
+                                A fonte não informa micronutrientes para este alimento.
+                            </p>
+                        </div>
+                    </template>
+                </v-card-text>
+                <v-card-actions class="px-6 pb-6">
+                    <v-spacer />
+                    <v-btn variant="text" class="texto-botao" @click="dialogoMicronutrientes = false">Fechar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
         <v-snackbar v-model="notificacaoAberta" color="success" timeout="2500">{{ mensagem }}</v-snackbar>
     </main>
 </template>
@@ -587,10 +902,19 @@ function salvarRascunho() {
 .texto-introdutorio, .titulo-secao p, .cartao-nutricao small { margin: 0; color: #7b8893; font-size: 13px; }
 .acoes-cabecalho { display: flex; gap: 10px; }
 .texto-botao { text-transform: none; }
-.cartoes-nutricao { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.cartoes-nutricao { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 .cartao-nutricao { display: flex; min-height: 108px; flex-direction: column; justify-content: center; gap: 3px; padding: 16px 20px; border: 1px solid #e8edf2; border-radius: 12px; }
 .cartao-nutricao span { color: #647282; font-size: 13px; }
 .cartao-nutricao strong { color: #0a2540; font-size: 21px; font-weight: 700; }
+.cartao-nutricao small { line-height: 1.4; }
+.cartao-nutricao.micros-resumo { align-items: flex-start; }
+.cartao-nutricao.micros-resumo .v-btn { margin-top: 5px; }
+.cartao-grafico-macros { margin-top: 14px; padding: 18px 22px 10px; border: 1px solid #e8edf2; border-radius: 12px; }
+.titulo-grafico { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.titulo-grafico h2 { margin: 0 0 4px; color: #0a2540; font-size: 16px; font-weight: 700; }
+.titulo-grafico p, .titulo-grafico > span, .texto-sem-grafico { margin: 0; color: #7b8893; font-size: 12px; }
+.legenda-calorica { margin: 4px 0 0; color: #7b8893; font-size: 12px; }
+.texto-sem-grafico { padding: 22px 0; }
 .cartao-nutricao.proteina { border-left: 3px solid #28a66a; }
 .cartao-nutricao.energia { border-left: 3px solid #635bff; }
 .cartao-nutricao.carboidrato { border-left: 3px solid #e39b25; }
@@ -612,6 +936,7 @@ function salvarRascunho() {
 .alimento-nome { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .alimento-nome strong { color: #0a2540; font-size: 13px; font-weight: 600; }
 .alimento-nome span, .rodape-alimento > span { color: #8995a1; font-size: 11px; }
+.acoes-alimento { display: flex; align-items: center; gap: 2px; }
 .nutrientes-alimento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 12px 0 5px; color: #7b8893; font-size: 10px; }
 .nutrientes-alimento b { display: block; color: #34495c; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .rodape-alimento { align-items: center; border-top: 1px solid #f0f2f5; padding-top: 5px; }
@@ -634,6 +959,7 @@ function salvarRascunho() {
 .detalhe-refeicao strong { width: 100%; overflow: hidden; color: #34495c; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nutrientes-item-refeicao { display: flex; flex-wrap: wrap; gap: 4px 8px; }
 .nutrientes-item-refeicao span { color: #7b8893; font-size: 10px; }
+.botao-micro-item { margin-left: -8px; }
 .campo-gramas { width: 120px; min-width: 120px; flex: 0 0 120px; }
 .nota-total { display: flex; align-items: flex-start; gap: 8px; margin: 16px 0 0; color: #7b8893; font-size: 11px; line-height: 1.5; }
 .nota-total :deep(svg) { flex-shrink: 0; color: #635bff; }
@@ -642,6 +968,17 @@ function salvarRascunho() {
 .dialogo-personalizado .v-card-text { padding: 8px 24px 0; }
 .texto-dialogo { margin: 0 0 18px; color: #7b8893; font-size: 13px; }
 .grade-nutrientes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.dialogo-micronutrientes { border-radius: 14px; }
+.dialogo-micronutrientes .v-card-title { padding: 24px 24px 8px; font-size: 20px; font-weight: 700; }
+.dialogo-micronutrientes .v-card-text { max-height: 70vh; overflow-y: auto; padding: 8px 24px 0; }
+.nome-cientifico { margin: 0 0 8px; color: #34495c; font-size: 13px; }
+.nome-cientifico strong { color: #0a2540; }
+.lista-micronutrientes h3 { margin: 18px 0 8px; color: #0a2540; font-size: 14px; font-weight: 700; }
+.lista-micronutrientes h3:first-child { margin-top: 0; }
+.linha-micronutriente { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, auto) minmax(120px, auto); align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #f0f2f5; font-size: 13px; }
+.linha-micronutriente strong { color: #34495c; font-weight: 600; }
+.linha-micronutriente > span { color: #0a2540; text-align: right; }
+.linha-micronutriente small { color: #8995a1; font-size: 11px; text-align: right; }
 @media (max-width: 800px) {
     .cabecalho-pagina { align-items: flex-start; flex-direction: column; }
     .acoes-cabecalho { width: 100%; }
@@ -649,11 +986,15 @@ function salvarRascunho() {
     .cabecalho-refeicoes-plano { align-items: flex-start; flex-direction: column; }
     .cartoes-nutricao { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
     .cartao-nutricao { min-height: 96px; padding: 13px; }
+    .titulo-grafico { align-items: flex-start; flex-direction: column; }
 }
 @media (max-width: 480px) {
     .cartao-conteudo { padding: 16px; }
     .nutrientes-alimento { grid-template-columns: repeat(2, 1fr); row-gap: 8px; }
     .linha-filtros { grid-template-columns: 1fr; }
     .cabecalho-pagina h1 { font-size: 24px; }
+    .acoes-alimento { align-items: flex-end; flex-direction: column; }
+    .linha-micronutriente { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; }
+    .linha-micronutriente small { grid-column: 1 / -1; text-align: left; }
 }
 </style>
