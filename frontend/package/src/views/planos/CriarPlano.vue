@@ -9,6 +9,7 @@ import {
     type Micronutrientes,
     type ValorMicronutriente
 } from '@/dados/alimentos';
+import { calcularIdade, criarPaciente, lerPacientes, type Paciente } from '@/dados/pacientes';
 import { gerarCodigoHashPlano, obterPlanoMockPorCodigo } from '@/dados/planosMock';
 import {
     atualizarPlano,
@@ -35,6 +36,39 @@ const refeicoes = ref<RefeicaoPlano[]>(criarRefeicoesPadrao());
 const nomesRefeicoes = computed(() => refeicoes.value.map((refeicao) => refeicao.nome));
 const refeicaoSelecionada = ref(refeicoesPadrao[0]);
 const nomePaciente = ref('');
+const pacientes = ref<Paciente[]>(lerPacientes());
+const dialogoNovoPaciente = ref(false);
+const novoPaciente = ref({ nome: '', dataNascimento: '', email: '', telefone: '' });
+const erroNovoPaciente = ref('');
+
+// Mantém no seletor o paciente de planos antigos, mesmo que não esteja cadastrado.
+const opcoesPacientes = computed(() => {
+    const nomes = pacientes.value.map((paciente) => paciente.nome);
+    const atual = nomePaciente.value;
+    return atual && !nomes.includes(atual) ? [atual, ...nomes] : nomes;
+});
+
+function salvarNovoPaciente() {
+    const nome = novoPaciente.value.nome.trim();
+
+    if (!nome) {
+        erroNovoPaciente.value = 'Informe o nome do paciente.';
+        return;
+    }
+
+    const paciente = criarPaciente({
+        nome,
+        dataNascimento: novoPaciente.value.dataNascimento,
+        email: novoPaciente.value.email.trim(),
+        telefone: novoPaciente.value.telefone.trim(),
+        observacoes: ''
+    });
+    pacientes.value = lerPacientes();
+    nomePaciente.value = paciente.nome;
+    novoPaciente.value = { nome: '', dataNascimento: '', email: '', telefone: '' };
+    erroNovoPaciente.value = '';
+    dialogoNovoPaciente.value = false;
+}
 const objetivo = ref('');
 const nomeNutricionista = ref('');
 const busca = ref('');
@@ -664,7 +698,20 @@ function gerarPdf() {
                         <div class="icone-secao"><Icon icon="solar:user-id-linear" width="21" /></div>
                         <div><h2>Dados do plano</h2><p>Identifique o paciente, o objetivo e o responsável</p></div>
                     </div>
-                    <v-text-field v-model="nomePaciente" label="Paciente" placeholder="Nome completo" variant="outlined" />
+                    <div class="seletor-paciente">
+                        <v-select
+                            v-model="nomePaciente"
+                            :items="opcoesPacientes"
+                            label="Paciente"
+                            placeholder="Selecione um paciente"
+                            no-data-text="Nenhum paciente cadastrado"
+                            variant="outlined"
+                        />
+                        <v-btn color="primary" variant="tonal" aria-label="Cadastrar novo paciente" @click="dialogoNovoPaciente = true">
+                            <Icon icon="solar:user-plus-linear" width="18" class="me-2" />
+                            Novo
+                        </v-btn>
+                    </div>
                     <v-text-field v-model="objetivo" label="Objetivo nutricional" placeholder="Ex.: Reeducação alimentar" variant="outlined" />
                     <v-text-field v-model="nomeNutricionista" label="Nutricionista responsável" placeholder="Nome completo" variant="outlined" />
 
@@ -926,11 +973,45 @@ function gerarPdf() {
                 </v-card-actions>
             </v-card>
         </v-dialog>
+        <v-dialog v-model="dialogoNovoPaciente" max-width="480">
+            <v-card>
+                <v-card-title>Novo paciente</v-card-title>
+                <v-card-text>
+                    <v-alert v-if="erroNovoPaciente" type="error" variant="tonal" class="mb-4">{{ erroNovoPaciente }}</v-alert>
+                    <v-text-field v-model="novoPaciente.nome" label="Nome completo" variant="outlined" autofocus />
+                    <v-text-field
+                        v-model="novoPaciente.dataNascimento"
+                        label="Data de nascimento"
+                        type="date"
+                        variant="outlined"
+                        max="9999-12-31"
+                        :hint="calcularIdade(novoPaciente.dataNascimento) === null ? '' : `Idade: ${calcularIdade(novoPaciente.dataNascimento)} anos`"
+                        persistent-hint
+                        class="mb-4"
+                    />
+                    <v-text-field v-model="novoPaciente.email" label="E-mail" type="email" variant="outlined" />
+                    <v-text-field v-model="novoPaciente.telefone" label="Telefone" variant="outlined" hide-details />
+                </v-card-text>
+                <v-card-actions class="px-6 pb-6">
+                    <v-spacer />
+                    <v-btn variant="text" @click="dialogoNovoPaciente = false">Cancelar</v-btn>
+                    <v-btn color="primary" @click="salvarNovoPaciente">Salvar e selecionar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
         <v-snackbar v-model="notificacaoAberta" color="success" timeout="2500">{{ mensagem }}</v-snackbar>
     </main>
 </template>
 
 <style scoped lang="scss">
+.seletor-paciente {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    .v-input { flex: 1; }
+    .v-btn { min-height: 56px; }
+}
 .pagina-criar-plano { color: #0a2540; }
 .cabecalho-pagina { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .cabecalho-pagina h1 { margin: 10px 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }

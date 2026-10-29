@@ -28,12 +28,12 @@ import { UserIcon, MailIcon, ListCheckIcon } from 'vue-tabler-icons';
                     </template>
                     <v-list-item-title  class="pl-4 text-body-1">Minha conta</v-list-item-title>
                 </v-list-item>
-                <v-list-item value="item3" active-color="primary"> 
+                <!-- <v-list-item value="item3" active-color="primary"> 
                     <template v-slot:prepend>
                         <ListCheckIcon stroke-width="1.5"  size="20"/>
                     </template>
                     <v-list-item-title class="pl-4 text-body-1">Minhas tarefas</v-list-item-title>
-                </v-list-item>
+                </v-list-item> -->
             </v-list>
             <div class="pt-4 pb-4 px-5 text-center">
                 <v-btn to="/auth/login" color="primary" variant="outlined" block>Sair</v-btn>

@@ -3,12 +3,11 @@ const MainRoutes = {
     meta: {
         requiresAuth: true
     },
-    redirect: '/main',
     component: () => import('@/layouts/full/FullLayout.vue'),
     children: [
         {
             name: 'Início',
-            path: '/',
+            path: '',
             component: () => import('@/views/planos/ListaPlanos.vue')
         },
         {
@@ -17,9 +16,9 @@ const MainRoutes = {
             component: () => import('@/views/planos/ListaPlanos.vue')
         },
         {
-            name: 'Clientes',
-            path: '/clientes',
-            component: () => import('@/views/clientes/ListaClientes.vue')
+            name: 'Pacientes',
+            path: '/pacientes',
+            component: () => import('@/views/pacientes/ListaPacientes.vue')
         },
         {
             name: 'Alterar senha',
