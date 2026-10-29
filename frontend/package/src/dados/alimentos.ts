@@ -91,10 +91,14 @@ interface RegistroTaco {
         niacina_mg: number | null;
         vitamina_c_mg: number | null;
     };
-    flags: Record<string, string>;
+    flags: Partial<Record<string, string>>;
 }
 
-function valorTaco(valor: number | null, flags: Record<string, string>, chave: string): ValorMicronutriente {
+function valorTaco(
+    valor: number | null,
+    flags: Partial<Record<string, string>>,
+    chave: string
+): ValorMicronutriente {
     return flags[chave] === 'Tr' ? 'Tr' : valor;
 }
 

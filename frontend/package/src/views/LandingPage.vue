@@ -6,7 +6,7 @@ const menuAberto = ref(false);
 </script>
 
 <template>
-    <!-- <main class="landing-page">
+    <main class="landing-page">
         <header class="site-header">
             <div class="container header-content">
                 <RouterLink class="brand" to="/" aria-label="NutriPlanner — início">
@@ -194,7 +194,7 @@ const menuAberto = ref(false);
                 <span>© {{ new Date().getFullYear() }} NutriPlanner</span>
             </div>
         </footer>
-    </main> -->
+    </main>
 </template>
 
 <style scoped>
