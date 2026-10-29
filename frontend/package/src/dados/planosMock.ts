@@ -1,3 +1,4 @@
+import { alimentosBase } from './alimentos';
 import type { AlimentoNoPlano, RefeicaoPlano } from './planosSalvos';
 
 export type StatusPlanoMock = 'Ativo' | 'Rascunho' | 'Concluído';
@@ -52,8 +53,13 @@ function criarAlimentoMock(
     gordura: number,
     carboidrato: number,
     fibra: number,
-    quantidadeGramas: number
+    quantidadeGramas: number,
+    referenciaMicronutrientes?: string
 ): AlimentoNoPlano {
+    const alimentoReferencia = referenciaMicronutrientes
+        ? alimentosBase.find((alimento) => alimento.nome === referenciaMicronutrientes)
+        : undefined;
+
     return {
         id,
         nome,
@@ -64,26 +70,97 @@ function criarAlimentoMock(
         lipideos_g: gordura,
         carboidrato_g: carboidrato,
         fibra_g: fibra,
-        quantidadeGramas
+        quantidadeGramas,
+        micronutrientes: alimentoReferencia?.micronutrientes
     };
 }
 
 const alimentosMock = {
-    aveia: criarAlimentoMock('aveia-mock', 'Aveia em flocos', 394, 13.9, 8.5, 66.6, 9.1, 30),
-    banana: criarAlimentoMock('banana-mock', 'Banana-prata', 98, 1.3, 0.1, 26, 2, 80),
-    ovo: criarAlimentoMock('ovo-mock', 'Ovo de galinha cozido', 146, 13.3, 9.5, 0.6, 0, 100),
-    iogurte: criarAlimentoMock('iogurte-mock', 'Iogurte natural', 51, 4.1, 3, 1.9, 0, 170),
-    maca: criarAlimentoMock('maca-mock', 'Maçã com casca', 56, 0.3, 0, 15.2, 1.3, 130),
-    castanhas: criarAlimentoMock('castanhas-mock', 'Castanha-do-pará', 643, 14.5, 63.5, 15.1, 7.9, 15),
-    frango: criarAlimentoMock('frango-mock', 'Peito de frango grelhado', 159, 32, 2.5, 0, 0, 130),
-    arroz: criarAlimentoMock('arroz-mock', 'Arroz integral cozido', 124, 2.6, 1, 25.8, 2.7, 100),
-    feijao: criarAlimentoMock('feijao-mock', 'Feijão carioca cozido', 76, 4.8, 0.5, 13.6, 8.5, 90),
+    aveia: criarAlimentoMock('aveia-mock', 'Aveia em flocos', 394, 13.9, 8.5, 66.6, 9.1, 30, 'Aveia, flocos, crua'),
+    banana: criarAlimentoMock('banana-mock', 'Banana-prata', 98, 1.3, 0.1, 26, 2, 80, 'Banana, prata, crua'),
+    ovo: criarAlimentoMock(
+        'ovo-mock',
+        'Ovo de galinha cozido',
+        146,
+        13.3,
+        9.5,
+        0.6,
+        0,
+        100,
+        'Ovo, de galinha, inteiro, cozido/10minutos'
+    ),
+    iogurte: criarAlimentoMock('iogurte-mock', 'Iogurte natural', 51, 4.1, 3, 1.9, 0, 170, 'Iogurte, natural'),
+    maca: criarAlimentoMock('maca-mock', 'Maçã com casca', 56, 0.3, 0, 15.2, 1.3, 130, 'Maçã, Fuji, com casca, crua'),
+    castanhas: criarAlimentoMock(
+        'castanhas-mock',
+        'Castanha-do-pará',
+        643,
+        14.5,
+        63.5,
+        15.1,
+        7.9,
+        15,
+        'Castanha-do-Brasil, crua'
+    ),
+    frango: criarAlimentoMock(
+        'frango-mock',
+        'Peito de frango grelhado',
+        159,
+        32,
+        2.5,
+        0,
+        0,
+        130,
+        'Frango, peito, sem pele, grelhado'
+    ),
+    arroz: criarAlimentoMock(
+        'arroz-mock',
+        'Arroz integral cozido',
+        124,
+        2.6,
+        1,
+        25.8,
+        2.7,
+        100,
+        'Arroz, integral, cozido'
+    ),
+    feijao: criarAlimentoMock(
+        'feijao-mock',
+        'Feijão carioca cozido',
+        76,
+        4.8,
+        0.5,
+        13.6,
+        8.5,
+        90,
+        'Feijão, carioca, cozido'
+    ),
     salada: criarAlimentoMock('salada-mock', 'Salada de folhas e tomate', 20, 1.2, 0.2, 3.5, 1.5, 100),
-    pera: criarAlimentoMock('pera-mock', 'Pera', 53, 0.6, 0.1, 14, 3, 130),
-    queijo: criarAlimentoMock('queijo-mock', 'Queijo minas frescal', 264, 17.4, 20.2, 3.2, 0, 30),
+    pera: criarAlimentoMock('pera-mock', 'Pera', 53, 0.6, 0.1, 14, 3, 130, 'Pêra, Williams, crua'),
+    queijo: criarAlimentoMock(
+        'queijo-mock',
+        'Queijo minas frescal',
+        264,
+        17.4,
+        20.2,
+        3.2,
+        0,
+        30,
+        'Queijo, minas, frescal'
+    ),
     peixe: criarAlimentoMock('peixe-mock', 'Filé de tilápia grelhado', 128, 26.2, 2.3, 0, 0, 140),
-    batata: criarAlimentoMock('batata-mock', 'Batata-doce cozida', 77, 0.6, 0.1, 18.4, 2.2, 120),
-    abacate: criarAlimentoMock('abacate-mock', 'Abacate', 96, 1.2, 8.4, 6, 6.3, 70),
+    batata: criarAlimentoMock(
+        'batata-mock',
+        'Batata-doce cozida',
+        77,
+        0.6,
+        0.1,
+        18.4,
+        2.2,
+        120,
+        'Batata, doce, cozida'
+    ),
+    abacate: criarAlimentoMock('abacate-mock', 'Abacate', 96, 1.2, 8.4, 6, 6.3, 70, 'Abacate, cru'),
     tapioca: criarAlimentoMock('tapioca-mock', 'Tapioca', 288, 0.2, 0, 71.9, 0.2, 50)
 };
 

@@ -305,6 +305,7 @@ const serieGraficoMacronutrientes = computed(() => [
 ]);
 
 const tipoGraficoMacronutrientes = ref<'bar' | 'pie'>('bar');
+const graficoEnergeticoExpandido = ref(false);
 const opcoesGraficoPizza = computed(() => ({
     chart: { type: 'pie', fontFamily: 'inherit', foreColor: '#7b8893' },
     labels: categoriasGraficoMacronutrientes.value,
@@ -403,7 +404,7 @@ function formatarMicronutriente(valor: ValorMicronutriente, unidade: string): st
     }
 
     return valor === 'Tr'
-        ? 'Tr (traço)'
+        ? 'Sem valor'
         : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${unidade}`;
 }
 
@@ -657,35 +658,49 @@ function gerarPdf() {
         </section>
         <v-card class="cartao-grafico-macros" elevation="0">
             <div class="titulo-grafico">
-                <div>
-                    <h2>Distribuição energética</h2>
-                    <p>Percentual das calorias totais fornecido por cada macronutriente</p>
-                </div>
+                <button
+                    type="button"
+                    class="botao-toggle-grafico"
+                    :aria-expanded="graficoEnergeticoExpandido"
+                    aria-controls="conteudo-distribuicao-energetica"
+                    @click="graficoEnergeticoExpandido = !graficoEnergeticoExpandido"
+                >
+                    <Icon
+                        :icon="graficoEnergeticoExpandido ? 'solar:alt-arrow-up-linear' : 'solar:alt-arrow-down-linear'"
+                        width="20"
+                    />
+                    <span class="texto-toggle-grafico">
+                        <strong>Distribuição energética</strong>
+                        <span>Percentual das calorias totais fornecido por cada macronutriente</span>
+                    </span>
+                </button>
                 <v-btn-toggle v-model="tipoGraficoMacronutrientes" mandatory density="compact" variant="outlined" color="primary" divided>
                     <v-btn value="bar" class="texto-botao" size="small">Barras</v-btn>
                     <v-btn value="pie" class="texto-botao" size="small">Pizza</v-btn>
                 </v-btn-toggle>
             </div>
-            <p class="legenda-calorica">Carboidratos e proteínas: 4 kcal/g · Gorduras: 9 kcal/g</p>
-            <template v-if="resumo.calorias !== null && resumo.calorias > 0 && participacaoEnergetica.some((macro) => macro.percentual !== null)">
-                <apexchart
-                    v-if="tipoGraficoMacronutrientes === 'bar'"
-                    key="grafico-barras"
-                    type="bar"
-                    height="190"
-                    :options="opcoesGraficoMacronutrientes"
-                    :series="serieGraficoMacronutrientes"
-                />
-                <apexchart
-                    v-else
-                    key="grafico-pizza"
-                    type="pie"
-                    height="240"
-                    :options="opcoesGraficoPizza"
-                    :series="serieGraficoPizza"
-                />
-            </template>
-            <p v-else class="texto-sem-grafico">Adicione alimentos com calorias e macronutrientes informados para visualizar a distribuição.</p>
+            <div v-if="graficoEnergeticoExpandido" id="conteudo-distribuicao-energetica">
+                <p class="legenda-calorica">Carboidratos e proteínas: 4 kcal/g · Gorduras: 9 kcal/g</p>
+                <template v-if="resumo.calorias !== null && resumo.calorias > 0 && participacaoEnergetica.some((macro) => macro.percentual !== null)">
+                    <apexchart
+                        v-if="tipoGraficoMacronutrientes === 'bar'"
+                        key="grafico-barras"
+                        type="bar"
+                        height="190"
+                        :options="opcoesGraficoMacronutrientes"
+                        :series="serieGraficoMacronutrientes"
+                    />
+                    <apexchart
+                        v-else
+                        key="grafico-pizza"
+                        type="pie"
+                        height="240"
+                        :options="opcoesGraficoPizza"
+                        :series="serieGraficoPizza"
+                    />
+                </template>
+                <p v-else class="texto-sem-grafico">Adicione alimentos com calorias e macronutrientes informados para visualizar a distribuição.</p>
+            </div>
         </v-card>
         <p v-if="todasAsPorcoes.some((alimento) => alimento.kcal === null || alimento.proteina_g === null || alimento.carboidrato_g === null || alimento.lipideos_g === null)" class="aviso-dados">
             Alguns alimentos não têm todos os nutrientes informados na fonte; o total correspondente será exibido como “—”.
@@ -923,6 +938,9 @@ function gerarPdf() {
                         <p class="texto-dialogo">
                             Total calculado proporcionalmente às porções adicionadas. Itens sem o dado na fonte são excluídos do total.
                         </p>
+                        <p v-if="planoMockCarregado" class="texto-dialogo">
+                            Plano demonstrativo: micronutrientes baseados em alimentos de referência da TACO; ingredientes sem referência equivalente não entram no total.
+                        </p>
                         <div v-if="resumoMicronutrientes.length" class="lista-micronutrientes">
                             <template v-for="grupo in gruposMicronutrientes" :key="grupo">
                                 <h3 v-if="resumoMicronutrientes.some((item) => item.grupo === grupo)">{{ grupo }}</h3>
@@ -948,7 +966,7 @@ function gerarPdf() {
                             <strong>Nome científico:</strong>
                             {{ alimentoMicronutrientes.nome_cientifico || 'Não informado pela fonte' }}
                         </p>
-                        <p class="texto-dialogo">Valores por 100 g. “Tr” indica valor em traço; dados não disponíveis na fonte são exibidos como “Não informado”.</p>
+                        <p class="texto-dialogo">Valores por 100 g. Valores identificados como “Tr” na fonte são exibidos como “Sem valor”; dados não disponíveis são exibidos como “Não informado”.</p>
                         <div class="lista-micronutrientes">
                             <template v-for="grupo in gruposMicronutrientes" :key="grupo">
                                 <h3 v-if="micronutrientesDoAlimento.some((item) => item.grupo === grupo)">{{ grupo }}</h3>
@@ -1030,8 +1048,11 @@ function gerarPdf() {
 .cartao-nutricao.micros-resumo .v-btn { margin-top: 5px; }
 .cartao-grafico-macros { margin-top: 14px; padding: 18px 22px 10px; border: 1px solid #e8edf2; border-radius: 12px; }
 .titulo-grafico { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.titulo-grafico h2 { margin: 0 0 4px; color: #0a2540; font-size: 16px; font-weight: 700; }
-.titulo-grafico p, .titulo-grafico > span, .texto-sem-grafico { margin: 0; color: #7b8893; font-size: 12px; }
+.botao-toggle-grafico { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; padding: 0; border: 0; color: #635bff; text-align: left; background: transparent; cursor: pointer; }
+.texto-toggle-grafico { display: flex; flex: 1; flex-direction: column; gap: 4px; text-align: left; }
+.texto-toggle-grafico strong { color: #0a2540; font-size: 16px; font-weight: 700; }
+.texto-toggle-grafico > span, .texto-sem-grafico { margin: 0; color: #7b8893; font-size: 12px; }
+.botao-toggle-grafico:focus-visible { outline: 2px solid #635bff; outline-offset: 4px; border-radius: 2px; }
 .legenda-calorica { margin: 4px 0 0; color: #7b8893; font-size: 12px; }
 .texto-sem-grafico { padding: 22px 0; }
 .cartao-nutricao.proteina { border-left: 3px solid #28a66a; }
